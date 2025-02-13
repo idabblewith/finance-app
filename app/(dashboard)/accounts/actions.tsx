@@ -6,13 +6,13 @@ import { useOpenAccount } from "@/features/accounts/hooks/use-open-account";
 import { useDeleteAccount } from "@/features/accounts/api/use-delete-account";
 
 import { useConfirm } from "@/hooks/use-confirm";
+import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Button } from "@/components/ui/button";
 
 type Props = {
 	id: string;
