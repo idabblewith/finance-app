@@ -1,7 +1,13 @@
 import { z } from "zod";
 import { createInsertSchema } from "drizzle-zod";
 import { relations } from "drizzle-orm";
-import { integer, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import {
+	integer,
+	//  bigint,
+	pgTable,
+	text,
+	timestamp,
+} from "drizzle-orm/pg-core";
 
 export const accounts = pgTable("accounts", {
 	id: text("id").primaryKey(),
@@ -31,6 +37,8 @@ export const insertCategorySchema = createInsertSchema(categories);
 
 export const transactions = pgTable("transactions", {
 	id: text("id").primaryKey(),
+	// big int to accept larger numbers
+	// amount: bigint("amount", { mode: "number" }).notNull(),
 	amount: integer("amount").notNull(),
 	payee: text("payee").notNull(),
 	notes: text("notes"),
