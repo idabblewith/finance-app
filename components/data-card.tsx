@@ -90,7 +90,9 @@ export const DataCard = ({
 						"text-muted-foreground text-sm line-clamp-1",
 						title === "Expenses"
 							? percentageChange < 0
-								? "text-emerald-500"
+								? percentageChange === -100
+									? "text-muted-foreground"
+									: "text-emerald-500"
 								: "text-rose-500"
 							: percentageChange > 0 && percentageChange < 1
 							? "text-muted-foreground"

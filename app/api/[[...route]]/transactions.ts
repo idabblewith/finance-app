@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { Hono } from "hono";
 import { parse, subDays } from "date-fns";
+// subDays
 import { createId } from "@paralleldrive/cuid2";
 import { zValidator } from "@hono/zod-validator";
 import { clerkMiddleware, getAuth } from "@hono/clerk-auth";
@@ -34,23 +35,25 @@ const app = new Hono()
 				return c.json({ error: "Unauthorized" }, 401);
 			}
 
-			// Create an array to hold our conditions
-			const conditions = [eq(accounts.userId, auth.userId)];
+			// Set up date range with defaults
+			const endDate = to
+				? parse(to, "yyyy-MM-dd", new Date())
+				: new Date();
+
+			const startDate = from
+				? parse(from, "yyyy-MM-dd", new Date())
+				: subDays(endDate, 30); // Default to 30 days if no from date
+
+			// Create base conditions array
+			const conditions = [
+				eq(accounts.userId, auth.userId),
+				gte(transactions.date, startDate),
+				lte(transactions.date, endDate),
+			];
 
 			// Add accountId condition if provided
 			if (accountId) {
 				conditions.push(eq(transactions.accountId, accountId));
-			}
-
-			// Add date range conditions only if dates are provided
-			if (from) {
-				const startDate = parse(from, "yyyy-MM-dd", new Date());
-				conditions.push(gte(transactions.date, startDate));
-			}
-
-			if (to) {
-				const endDate = parse(to, "yyyy-MM-dd", new Date());
-				conditions.push(lte(transactions.date, endDate));
 			}
 
 			const data = await db
@@ -73,46 +76,6 @@ const app = new Hono()
 				)
 				.where(and(...conditions))
 				.orderBy(desc(transactions.date));
-
-			// const defaultTo = new Date();
-			// const defaultFrom = subDays(defaultTo, 30);
-
-			// const startDate = from
-			// 	? parse(from, "yyyy-MM-dd", new Date())
-			// 	: defaultFrom;
-			// const endDate = to
-			// 	? parse(to, "yyyy-MM-dd", new Date())
-			// 	: defaultTo;
-
-			// const data = await db
-			// 	.select({
-			// 		id: transactions.id,
-			// 		date: transactions.date,
-			// 		category: categories.name,
-			// 		categoryId: transactions.categoryId,
-			// 		payee: transactions.payee,
-			// 		amount: transactions.amount,
-			// 		notes: transactions.notes,
-			// 		account: accounts.name,
-			// 		accountId: transactions.accountId,
-			// 	})
-			// 	.from(transactions)
-			// 	.innerJoin(accounts, eq(transactions.accountId, accounts.id))
-			// 	.leftJoin(
-			// 		categories,
-			// 		eq(transactions.categoryId, categories.id)
-			// 	)
-			// 	.where(
-			// 		and(
-			// 			accountId
-			// 				? eq(transactions.accountId, accountId)
-			// 				: undefined,
-			// 			eq(accounts.userId, auth.userId),
-			// 			gte(transactions.date, startDate),
-			// 			lte(transactions.date, endDate)
-			// 		)
-			// 	)
-			// 	.orderBy(desc(transactions.date));
 
 			return c.json({ data });
 		}

@@ -28,23 +28,33 @@ const app = new Hono().get(
 			return c.json({ error: "Unauthorized" }, 401);
 		}
 
-		const defaultTo = new Date();
-		const defaultFrom = subDays(defaultTo, 30);
+		// Set up date range with defaults
+		const endDate = to ? parse(to, "yyyy-MM-dd", new Date()) : new Date();
 
 		const startDate = from
 			? parse(from, "yyyy-MM-dd", new Date())
-			: defaultFrom;
-		const endDate = to ? parse(to, "yyyy-MM-dd", new Date()) : defaultTo;
+			: subDays(endDate, 30); // Default to 30 days if no from date
 
+		// Calculate the period length and previous period dates
 		const periodLength = differenceInDays(endDate, startDate) + 1;
 		const lastPeriodStart = subDays(startDate, periodLength);
-		const lastPeriodEnd = subDays(endDate, periodLength);
+		const lastPeriodEnd = subDays(startDate, 1);
+
+		// Create base conditions array
+		const baseConditions = [eq(accounts.userId, auth.userId)];
+		if (accountId) {
+			baseConditions.push(eq(transactions.accountId, accountId));
+		}
 
 		async function fetchFinancialData(
 			userId: string,
-			startDate: Date,
-			endDate: Date
+			periodStart: Date,
+			periodEnd: Date
 		) {
+			const conditions = [...baseConditions];
+			conditions.push(gte(transactions.date, periodStart));
+			conditions.push(lte(transactions.date, periodEnd));
+
 			return await db
 				.select({
 					income: sql`SUM(CASE WHEN ${transactions.amount} >= 0 THEN ${transactions.amount} ELSE 0 END)`.mapWith(
@@ -58,29 +68,23 @@ const app = new Hono().get(
 				})
 				.from(transactions)
 				.innerJoin(accounts, eq(transactions.accountId, accounts.id))
-				.where(
-					and(
-						accountId
-							? eq(transactions.accountId, accountId)
-							: undefined,
-						eq(accounts.userId, userId),
-						gte(transactions.date, startDate),
-						lte(transactions.date, endDate)
-					)
-				);
+				.where(and(...conditions));
 		}
 
+		// Fetch data for both periods
 		const [currentPeriod] = await fetchFinancialData(
 			auth.userId,
 			startDate,
 			endDate
 		);
+
 		const [lastPeriod] = await fetchFinancialData(
 			auth.userId,
 			lastPeriodStart,
 			lastPeriodEnd
 		);
 
+		// Calculate percentage changes
 		const incomeChange = calculatePercentageChange(
 			currentPeriod.income,
 			lastPeriod.income
@@ -94,6 +98,12 @@ const app = new Hono().get(
 			lastPeriod.remaining
 		);
 
+		// Category breakdown with current period dates
+		const categoryConditions = [...baseConditions];
+		categoryConditions.push(lt(transactions.amount, 0));
+		categoryConditions.push(gte(transactions.date, startDate));
+		categoryConditions.push(lte(transactions.date, endDate));
+
 		const category = await db
 			.select({
 				name: categories.name,
@@ -102,17 +112,7 @@ const app = new Hono().get(
 			.from(transactions)
 			.innerJoin(accounts, eq(transactions.accountId, accounts.id))
 			.innerJoin(categories, eq(transactions.categoryId, categories.id))
-			.where(
-				and(
-					accountId
-						? eq(transactions.accountId, accountId)
-						: undefined,
-					eq(accounts.userId, auth.userId),
-					lt(transactions.amount, 0),
-					gte(transactions.date, startDate),
-					lte(transactions.date, endDate)
-				)
-			)
+			.where(and(...categoryConditions))
 			.groupBy(categories.name)
 			.orderBy(desc(sql`SUM(ABS(${transactions.amount}))`));
 
@@ -131,6 +131,7 @@ const app = new Hono().get(
 			});
 		}
 
+		// Daily breakdown
 		const activeDays = await db
 			.select({
 				date: transactions.date,
@@ -144,16 +145,7 @@ const app = new Hono().get(
 			})
 			.from(transactions)
 			.innerJoin(accounts, eq(transactions.accountId, accounts.id))
-			.where(
-				and(
-					accountId
-						? eq(transactions.accountId, accountId)
-						: undefined,
-					eq(accounts.userId, auth.userId),
-					gte(transactions.date, startDate),
-					lte(transactions.date, endDate)
-				)
-			)
+			.where(and(...categoryConditions))
 			.groupBy(transactions.date)
 			.orderBy(transactions.date);
 
@@ -173,5 +165,4 @@ const app = new Hono().get(
 		});
 	}
 );
-
 export default app;

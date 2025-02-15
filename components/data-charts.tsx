@@ -1,6 +1,6 @@
 "use client";
 
-import { useGetSummary } from "@/features/summary/use-get-summary";
+import { useGetSummary } from "@/features/summary/api/use-get-summary";
 
 import { Chart, ChartLoading } from "@/components/chart";
 import { SpendingPie, SpendingPieLoading } from "@/components/spending-pie";
