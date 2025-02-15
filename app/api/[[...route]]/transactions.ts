@@ -34,15 +34,24 @@ const app = new Hono()
 				return c.json({ error: "Unauthorized" }, 401);
 			}
 
-			const defaultTo = new Date();
-			const defaultFrom = subDays(defaultTo, 30);
+			// Create an array to hold our conditions
+			const conditions = [eq(accounts.userId, auth.userId)];
 
-			const startDate = from
-				? parse(from, "yyyy-MM-dd", new Date())
-				: defaultFrom;
-			const endDate = to
-				? parse(to, "yyyy-MM-dd", new Date())
-				: defaultTo;
+			// Add accountId condition if provided
+			if (accountId) {
+				conditions.push(eq(transactions.accountId, accountId));
+			}
+
+			// Add date range conditions only if dates are provided
+			if (from) {
+				const startDate = parse(from, "yyyy-MM-dd", new Date());
+				conditions.push(gte(transactions.date, startDate));
+			}
+
+			if (to) {
+				const endDate = parse(to, "yyyy-MM-dd", new Date());
+				conditions.push(lte(transactions.date, endDate));
+			}
 
 			const data = await db
 				.select({
@@ -62,17 +71,48 @@ const app = new Hono()
 					categories,
 					eq(transactions.categoryId, categories.id)
 				)
-				.where(
-					and(
-						accountId
-							? eq(transactions.accountId, accountId)
-							: undefined,
-						eq(accounts.userId, auth.userId),
-						gte(transactions.date, startDate),
-						lte(transactions.date, endDate)
-					)
-				)
+				.where(and(...conditions))
 				.orderBy(desc(transactions.date));
+
+			// const defaultTo = new Date();
+			// const defaultFrom = subDays(defaultTo, 30);
+
+			// const startDate = from
+			// 	? parse(from, "yyyy-MM-dd", new Date())
+			// 	: defaultFrom;
+			// const endDate = to
+			// 	? parse(to, "yyyy-MM-dd", new Date())
+			// 	: defaultTo;
+
+			// const data = await db
+			// 	.select({
+			// 		id: transactions.id,
+			// 		date: transactions.date,
+			// 		category: categories.name,
+			// 		categoryId: transactions.categoryId,
+			// 		payee: transactions.payee,
+			// 		amount: transactions.amount,
+			// 		notes: transactions.notes,
+			// 		account: accounts.name,
+			// 		accountId: transactions.accountId,
+			// 	})
+			// 	.from(transactions)
+			// 	.innerJoin(accounts, eq(transactions.accountId, accounts.id))
+			// 	.leftJoin(
+			// 		categories,
+			// 		eq(transactions.categoryId, categories.id)
+			// 	)
+			// 	.where(
+			// 		and(
+			// 			accountId
+			// 				? eq(transactions.accountId, accountId)
+			// 				: undefined,
+			// 			eq(accounts.userId, auth.userId),
+			// 			gte(transactions.date, startDate),
+			// 			lte(transactions.date, endDate)
+			// 		)
+			// 	)
+			// 	.orderBy(desc(transactions.date));
 
 			return c.json({ data });
 		}
